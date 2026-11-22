@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="author" content="Rylan Saw" />
+  <title>Frog Knight vs Boss Fly - by Rylan Saw</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="arcade-cabinet">
+    <!-- CRT Screen -->
+    <div class="crt-bezel">
+      <div class="crt-screen">
+        <canvas id="gameCanvas" width="800" height="420"></canvas>
+        <div class="scanlines"></div>
+
+        <!-- Start / Game Over Overlay -->
+        <div id="overlay" class="overlay">
+          <h1 id="overlayTitle">FROG KNIGHT</h1>
+          <p id="overlaySubtitle">STAGE 1: SWAMP FLIES &rarr; 50s BOSS FLY</p>
+          <p class="creator-credit">CREATED BY RYLAN SAW</p>
+          <button id="startBtn" class="pixel-btn">INSERT COIN / START</button>
+          <p class="controls-hint">
+            Joystick / Arrows: Move &amp; Jump (Up) &bull; SLASH (Z/J): Giant Slash &bull; ITEM (X/K): Use Item
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arcade Control Deck -->
+    <div class="control-deck">
+      <!-- Left: Virtual Analog Joystick (Includes Move & Up/Jump) -->
+      <div class="joystick-zone" id="joystickZone">
+        <div class="joystick-base">
+          <div class="joystick-stick" id="joystickStick">
+            <div class="joystick-ball"></div>
+          </div>
+        </div>
+        <span class="label">MOVE / JUMP</span>
+      </div>
+
+      <!-- Center: Arcade System Buttons -->
+      <div class="system-buttons">
+        <div class="sys-btn-group">
+          <button id="soundToggleBtn" class="sys-btn green" title="Mute/Unmute"></button>
+          <span>SOUND</span>
+        </div>
+        <div class="sys-btn-group">
+          <button id="restartBtn" class="sys-btn red" title="Restart"></button>
+          <span>RESET</span>
+        </div>
+      </div>
+
+      <!-- Right: Large SLASH Button & ITEM Skill Button (Replaces JUMP Button) -->
+      <div class="action-buttons">
+        <div class="btn-wrapper">
+          <button id="btnItem" class="arcade-btn item-btn disabled" disabled title="Slash an item to unlock">
+            <span id="itemBtnIcon">?</span>
+          </button>
+          <span class="label" id="itemBtnLabel">ITEM LOCK</span>
+        </div>
+        <div class="btn-wrapper">
+          <button id="btnAttack" class="arcade-btn blue slash-big">SLASH</button>
+          <span class="label">SLASH</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

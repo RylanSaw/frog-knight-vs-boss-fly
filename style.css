@@ -1,0 +1,332 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+body {
+  background-color: #0d0f14;
+  color: #fff;
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.arcade-cabinet {
+  width: 100%;
+  max-width: 920px;
+  background: linear-gradient(180deg, #252834 0%, #171922 100%);
+  border: 6px solid #3a3f52;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), inset 0 2px 10px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* CRT Monitor Frame */
+.crt-bezel {
+  background: #111318;
+  padding: 12px;
+  border-radius: 16px;
+  border: 4px solid #090a0d;
+  box-shadow: inset 0 0 20px #000;
+}
+
+.crt-screen {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 800 / 420;
+  background: #0a140e;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 15px rgba(72, 255, 160, 0.15);
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.scanlines {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%,
+    rgba(0, 0, 0, 0.25) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+/* Overlay */
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 14, 10, 0.88);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 16px;
+  z-index: 10;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay h1 {
+  font-size: clamp(18px, 4vw, 34px);
+  color: #4deeea;
+  text-shadow: 3px 3px 0 #1b4d3e;
+}
+
+.overlay p {
+  font-size: clamp(10px, 2.2vw, 17px);
+  color: #ffe700;
+}
+
+.overlay .creator-credit {
+  font-size: clamp(9px, 1.5vw, 12px);
+  color: #74d647;
+  letter-spacing: 1px;
+}
+
+.overlay .controls-hint {
+  font-size: clamp(8px, 1.3vw, 10px);
+  color: #a0b0a8;
+  margin-top: 6px;
+  line-height: 1.7;
+}
+
+.pixel-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(11px, 2vw, 16px);
+  padding: 14px 22px;
+  background: #ff3b30;
+  color: #fff;
+  border: 4px solid #fff;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #8a1912;
+  transition: transform 0.05s;
+}
+
+.pixel-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #8a1912;
+}
+
+/* Control Deck */
+.control-deck {
+  background: linear-gradient(180deg, #3b2618 0%, #26170e 100%);
+  border: 4px solid #523624;
+  border-radius: 12px;
+  padding: 14px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.6);
+}
+
+.label {
+  font-size: clamp(8px, 1.3vw, 10px);
+  color: #e6d5c3;
+  margin-top: 8px;
+  display: block;
+  text-align: center;
+}
+
+/* Virtual Analog Joystick */
+.joystick-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.joystick-base {
+  width: clamp(84px, 13vw, 104px);
+  height: clamp(84px, 13vw, 104px);
+  background: radial-gradient(circle, #2a2e38 40%, #14161c 100%);
+  border: 4px solid #6b7280;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: inset 0 6px 12px #000, 0 4px 8px rgba(0,0,0,0.6);
+}
+
+.joystick-stick {
+  width: clamp(40px, 6vw, 48px);
+  height: clamp(40px, 6vw, 48px);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.04s ease-out;
+}
+
+.joystick-ball {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 30% 30%, #ff6b6b, #d90429 70%, #800016 100%);
+  border-radius: 50%;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.7);
+}
+
+/* Center Small Buttons */
+.system-buttons {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.sys-btn-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.sys-btn-group span {
+  font-size: 8px;
+  color: #cbb8a6;
+}
+
+.sys-btn {
+  width: 28px;
+  height: 16px;
+  border-radius: 8px;
+  border: 2px solid #111;
+  cursor: pointer;
+}
+
+.sys-btn.green {
+  background: #2ecc71;
+  box-shadow: 0 3px 0 #1b7a43;
+}
+
+.sys-btn.red {
+  background: #e74c3c;
+  box-shadow: 0 3px 0 #922b21;
+}
+
+.sys-btn:active {
+  transform: translateY(2px);
+}
+
+/* Right Action Buttons: Item Skill & Large SLASH */
+.action-buttons {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.btn-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.arcade-btn {
+  border-radius: 50%;
+  font-family: 'Press Start 2P', monospace;
+  border: 4px solid #1a1a1a;
+  cursor: pointer;
+  transition: transform 0.05s, filter 0.2s, box-shadow 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Large Right SLASH Button */
+.arcade-btn.blue.slash-big {
+  width: clamp(82px, 13vw, 102px);
+  height: clamp(82px, 13vw, 102px);
+  font-size: clamp(12px, 1.8vw, 15px);
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #0f2942;
+  background: radial-gradient(circle at 35% 35%, #6ec6ff, #2980b9 72%, #154360 100%);
+  box-shadow: 0 8px 0 #0e2f44, 0 12px 18px rgba(0,0,0,0.65);
+}
+
+.arcade-btn.blue.slash-big:active,
+.arcade-btn.blue.slash-big.pressed {
+  transform: translateY(5px);
+  box-shadow: 0 3px 0 #0e2f44;
+}
+
+/* Item Unlockable Button (Replaces JUMP Button) */
+.arcade-btn.item-btn {
+  width: clamp(64px, 9.5vw, 76px);
+  height: clamp(64px, 9.5vw, 76px);
+  font-size: clamp(11px, 1.5vw, 14px);
+  background: radial-gradient(circle at 35% 35%, #a8ff78, #2ecc71 75%, #1b7a43 100%);
+  box-shadow: 0 7px 0 #145a32, 0 0 18px rgba(46, 204, 113, 0.8);
+  color: #fff;
+  text-shadow: 2px 2px 0 #000;
+  animation: pulseItemBtn 1s infinite alternate;
+}
+
+.arcade-btn.item-btn.disabled,
+.arcade-btn.item-btn:disabled {
+  background: radial-gradient(circle at 35% 35%, #555, #333 75%, #1c1c1c 100%);
+  box-shadow: 0 5px 0 #111;
+  color: #777;
+  cursor: not-allowed;
+  animation: none;
+  opacity: 0.55;
+}
+
+@keyframes pulseItemBtn {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+
+.arcade-btn.item-btn:not(:disabled):active,
+.arcade-btn.item-btn:not(:disabled).pressed {
+  transform: translateY(5px);
+  box-shadow: 0 2px 0 #145a32;
+}
+
+/* Responsive Adjustments for Mobile / Portrait Screens */
+@media (max-width: 640px) {
+  .arcade-cabinet {
+    padding: 10px;
+    border-width: 4px;
+    gap: 10px;
+  }
+
+  .control-deck {
+    padding: 12px 10px;
+    gap: 6px;
+  }
+
+  .system-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .action-buttons {
+    gap: 10px;
+  }
+}
