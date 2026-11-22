@@ -17,41 +17,42 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  padding: 10px;
+  padding: 8px;
   overflow-x: hidden;
   overflow-y: auto;
 }
 
+/* Expanded Arcade Cabinet for Larger Gameplay Display */
 .arcade-cabinet {
   width: 100%;
-  max-width: 920px;
+  max-width: 1120px;
   background: linear-gradient(180deg, #252834 0%, #171922 100%);
   border: 6px solid #3a3f52;
-  border-radius: 20px;
-  padding: 16px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), inset 0 2px 10px rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.88), inset 0 2px 10px rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-/* CRT Monitor Frame */
 .crt-bezel {
   background: #111318;
   padding: 12px;
   border-radius: 16px;
   border: 4px solid #090a0d;
-  box-shadow: inset 0 0 20px #000;
+  box-shadow: inset 0 0 24px #000;
 }
 
 .crt-screen {
   position: relative;
   width: 100%;
-  aspect-ratio: 800 / 420;
+  aspect-ratio: 960 / 500;
+  min-height: 360px;
   background: #0a140e;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 0 15px rgba(72, 255, 160, 0.15);
+  box-shadow: 0 0 20px rgba(72, 255, 160, 0.18);
 }
 
 canvas {
@@ -66,13 +67,13 @@ canvas {
   inset: 0;
   background: linear-gradient(
     rgba(18, 16, 16, 0) 50%,
-    rgba(0, 0, 0, 0.25) 50%
+    rgba(0, 0, 0, 0.22) 50%
   );
   background-size: 100% 4px;
   pointer-events: none;
 }
 
-/* Overlay */
+/* Overlays */
 .overlay {
   position: absolute;
   inset: 0;
@@ -87,18 +88,28 @@ canvas {
   z-index: 10;
 }
 
+.overlay.pause-overlay {
+  background: rgba(10, 12, 22, 0.82);
+  z-index: 15;
+}
+
 .overlay.hidden {
   display: none;
 }
 
 .overlay h1 {
-  font-size: clamp(18px, 4vw, 34px);
+  font-size: clamp(20px, 4.2vw, 38px);
   color: #4deeea;
   text-shadow: 3px 3px 0 #1b4d3e;
 }
 
+.overlay.pause-overlay h1 {
+  color: #ffe700;
+  text-shadow: 3px 3px 0 #7d6608;
+}
+
 .overlay p {
-  font-size: clamp(10px, 2.2vw, 17px);
+  font-size: clamp(10px, 2vw, 17px);
   color: #ffe700;
 }
 
@@ -109,16 +120,16 @@ canvas {
 }
 
 .overlay .controls-hint {
-  font-size: clamp(8px, 1.3vw, 10px);
-  color: #a0b0a8;
+  font-size: clamp(8px, 1.25vw, 10px);
+  color: #b4c4bc;
   margin-top: 6px;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 .pixel-btn {
   font-family: 'Press Start 2P', monospace;
   font-size: clamp(11px, 2vw, 16px);
-  padding: 14px 22px;
+  padding: 14px 24px;
   background: #ff3b30;
   color: #fff;
   border: 4px solid #fff;
@@ -127,17 +138,21 @@ canvas {
   transition: transform 0.05s;
 }
 
+.pixel-btn.resume-btn {
+  background: #2ecc71;
+  box-shadow: 0 6px 0 #186a3b;
+}
+
 .pixel-btn:active {
   transform: translateY(4px);
-  box-shadow: 0 2px 0 #8a1912;
 }
 
 /* Control Deck */
 .control-deck {
   background: linear-gradient(180deg, #3b2618 0%, #26170e 100%);
   border: 4px solid #523624;
-  border-radius: 12px;
-  padding: 14px 22px;
+  border-radius: 14px;
+  padding: 12px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -146,14 +161,14 @@ canvas {
 }
 
 .label {
-  font-size: clamp(8px, 1.3vw, 10px);
+  font-size: clamp(8px, 1.2vw, 10px);
   color: #e6d5c3;
-  margin-top: 8px;
+  margin-top: 7px;
   display: block;
   text-align: center;
 }
 
-/* Virtual Analog Joystick */
+/* Left Joystick */
 .joystick-zone {
   display: flex;
   flex-direction: column;
@@ -162,8 +177,8 @@ canvas {
 }
 
 .joystick-base {
-  width: clamp(84px, 13vw, 104px);
-  height: clamp(84px, 13vw, 104px);
+  width: clamp(82px, 11vw, 104px);
+  height: clamp(82px, 11vw, 104px);
   background: radial-gradient(circle, #2a2e38 40%, #14161c 100%);
   border: 4px solid #6b7280;
   border-radius: 50%;
@@ -175,8 +190,8 @@ canvas {
 }
 
 .joystick-stick {
-  width: clamp(40px, 6vw, 48px);
-  height: clamp(40px, 6vw, 48px);
+  width: clamp(38px, 5vw, 48px);
+  height: clamp(38px, 5vw, 48px);
   position: relative;
   display: flex;
   justify-content: center;
@@ -192,10 +207,10 @@ canvas {
   box-shadow: 0 6px 10px rgba(0, 0, 0, 0.7);
 }
 
-/* Center Small Buttons */
+/* Center System & Pause Buttons */
 .system-buttons {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -212,11 +227,23 @@ canvas {
 }
 
 .sys-btn {
-  width: 28px;
-  height: 16px;
+  min-width: 34px;
+  height: 22px;
+  padding: 0 6px;
   border-radius: 8px;
   border: 2px solid #111;
   cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sys-btn.amber {
+  background: #f1c40f;
+  box-shadow: 0 3px 0 #9a7d0a;
 }
 
 .sys-btn.green {
@@ -233,12 +260,68 @@ canvas {
   transform: translateY(2px);
 }
 
-/* Right Action Buttons: Item Skill & Large SLASH */
-.action-buttons {
+/* Right Controls: Individual Item Key Slots + Large SLASH Button */
+.right-controls {
   display: flex;
-  gap: 18px;
   align-items: center;
+  gap: 14px;
   flex-shrink: 0;
+}
+
+.item-key-rack {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  gap: 6px;
+  background: rgba(15, 10, 6, 0.65);
+  padding: 8px;
+  border-radius: 10px;
+  border: 2px solid #6b472e;
+}
+
+.item-key-slot {
+  width: 48px;
+  height: 54px;
+  border-radius: 8px;
+  border: 2px solid #222;
+  background: #2b2d36;
+  color: #777;
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 3px;
+  cursor: not-allowed;
+  opacity: 0.45;
+  transition: transform 0.06s, box-shadow 0.15s, opacity 0.15s;
+}
+
+.item-key-slot .key-badge {
+  font-size: 7px;
+  color: #aaa;
+}
+
+.item-key-slot .slot-tag {
+  font-size: 8px;
+}
+
+.item-key-slot.unlocked:not(:disabled) {
+  opacity: 1;
+  cursor: pointer;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+  border-color: #fff;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.7), 0 0 12px var(--slot-color, #4deeea);
+  background: linear-gradient(180deg, var(--slot-color, #4deeea) 0%, #1d2430 100%);
+}
+
+.item-key-slot.unlocked:not(:disabled) .key-badge {
+  color: #ffe700;
+}
+
+.item-key-slot.unlocked:not(:disabled):active,
+.item-key-slot.unlocked:not(:disabled).pressed {
+  transform: translateY(3px);
 }
 
 .btn-wrapper {
@@ -252,17 +335,16 @@ canvas {
   font-family: 'Press Start 2P', monospace;
   border: 4px solid #1a1a1a;
   cursor: pointer;
-  transition: transform 0.05s, filter 0.2s, box-shadow 0.2s;
+  transition: transform 0.05s;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-/* Large Right SLASH Button */
 .arcade-btn.blue.slash-big {
-  width: clamp(82px, 13vw, 102px);
-  height: clamp(82px, 13vw, 102px);
-  font-size: clamp(12px, 1.8vw, 15px);
+  width: clamp(82px, 11vw, 104px);
+  height: clamp(82px, 11vw, 104px);
+  font-size: clamp(12px, 1.6vw, 15px);
   color: #ffffff;
   text-shadow: 2px 2px 0 #0f2942;
   background: radial-gradient(circle at 35% 35%, #6ec6ff, #2980b9 72%, #154360 100%);
@@ -275,58 +357,26 @@ canvas {
   box-shadow: 0 3px 0 #0e2f44;
 }
 
-/* Item Unlockable Button (Replaces JUMP Button) */
-.arcade-btn.item-btn {
-  width: clamp(64px, 9.5vw, 76px);
-  height: clamp(64px, 9.5vw, 76px);
-  font-size: clamp(11px, 1.5vw, 14px);
-  background: radial-gradient(circle at 35% 35%, #a8ff78, #2ecc71 75%, #1b7a43 100%);
-  box-shadow: 0 7px 0 #145a32, 0 0 18px rgba(46, 204, 113, 0.8);
-  color: #fff;
-  text-shadow: 2px 2px 0 #000;
-  animation: pulseItemBtn 1s infinite alternate;
-}
-
-.arcade-btn.item-btn.disabled,
-.arcade-btn.item-btn:disabled {
-  background: radial-gradient(circle at 35% 35%, #555, #333 75%, #1c1c1c 100%);
-  box-shadow: 0 5px 0 #111;
-  color: #777;
-  cursor: not-allowed;
-  animation: none;
-  opacity: 0.55;
-}
-
-@keyframes pulseItemBtn {
-  from { transform: scale(1); }
-  to { transform: scale(1.06); }
-}
-
-.arcade-btn.item-btn:not(:disabled):active,
-.arcade-btn.item-btn:not(:disabled).pressed {
-  transform: translateY(5px);
-  box-shadow: 0 2px 0 #145a32;
-}
-
-/* Responsive Adjustments for Mobile / Portrait Screens */
-@media (max-width: 640px) {
-  .arcade-cabinet {
-    padding: 10px;
-    border-width: 4px;
-    gap: 10px;
-  }
-
+@media (max-width: 780px) {
   .control-deck {
-    padding: 12px 10px;
-    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 12px;
   }
 
-  .system-buttons {
-    flex-direction: column;
-    gap: 10px;
+  .right-controls {
+    width: 100%;
+    justify-content: space-around;
+  }
+}
+
+@media (max-width: 520px) {
+  .item-key-slot {
+    width: 42px;
+    height: 48px;
   }
 
-  .action-buttons {
-    gap: 10px;
+  .item-key-slot .slot-tag {
+    font-size: 7px;
   }
 }

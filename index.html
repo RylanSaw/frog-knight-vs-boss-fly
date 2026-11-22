@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="author" content="Rylan Saw" />
-  <title>Frog Knight vs Boss Fly - by Rylan Saw</title>
+  <title>Frog Knight vs Boss Fly &amp; Spider - by Rylan Saw</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,25 +12,33 @@
     <!-- CRT Screen -->
     <div class="crt-bezel">
       <div class="crt-screen">
-        <canvas id="gameCanvas" width="800" height="420"></canvas>
+        <canvas id="gameCanvas" width="960" height="500"></canvas>
         <div class="scanlines"></div>
 
         <!-- Start / Game Over Overlay -->
         <div id="overlay" class="overlay">
           <h1 id="overlayTitle">FROG KNIGHT</h1>
-          <p id="overlaySubtitle">STAGE 1: SWAMP FLIES &rarr; 50s BOSS FLY</p>
+          <p id="overlaySubtitle">FLY SWARM &rarr; BOSS FLY &rarr; SPIDERS &rarr; BOSS SPIDER</p>
           <p class="creator-credit">CREATED BY RYLAN SAW</p>
           <button id="startBtn" class="pixel-btn">INSERT COIN / START</button>
           <p class="controls-hint">
-            Joystick / Arrows: Move &amp; Jump (Up) &bull; SLASH (Z/J): Giant Slash &bull; ITEM (X/K): Use Item
+            Joystick / Arrows: Move &amp; Jump (Up) &bull; SLASH (Z/J) &bull; PAUSE (P/Esc)<br />
+            Item Keys: [1/H] Heal &bull; [2/S] Shield &bull; [3/W] Wave &bull; [4/T] Zap &bull; [5/R] Rage
           </p>
+        </div>
+
+        <!-- Pause Overlay -->
+        <div id="pauseOverlay" class="overlay pause-overlay hidden">
+          <h1>PAUSED</h1>
+          <p>GAME STOPPED</p>
+          <button id="resumeBtn" class="pixel-btn resume-btn">RESUME GAME</button>
         </div>
       </div>
     </div>
 
     <!-- Arcade Control Deck -->
     <div class="control-deck">
-      <!-- Left: Virtual Analog Joystick (Includes Move & Up/Jump) -->
+      <!-- Left: Virtual Analog Joystick -->
       <div class="joystick-zone" id="joystickZone">
         <div class="joystick-base">
           <div class="joystick-stick" id="joystickStick">
@@ -40,8 +48,12 @@
         <span class="label">MOVE / JUMP</span>
       </div>
 
-      <!-- Center: Arcade System Buttons -->
+      <!-- Center: System & Pause Buttons -->
       <div class="system-buttons">
+        <div class="sys-btn-group">
+          <button id="pauseBtn" class="sys-btn amber" title="Pause / Resume">II</button>
+          <span>PAUSE</span>
+        </div>
         <div class="sys-btn-group">
           <button id="soundToggleBtn" class="sys-btn green" title="Mute/Unmute"></button>
           <span>SOUND</span>
@@ -52,14 +64,31 @@
         </div>
       </div>
 
-      <!-- Right: Large SLASH Button & ITEM Skill Button (Replaces JUMP Button) -->
-      <div class="action-buttons">
-        <div class="btn-wrapper">
-          <button id="btnItem" class="arcade-btn item-btn disabled" disabled title="Slash an item to unlock">
-            <span id="itemBtnIcon">?</span>
+      <!-- Right: Per-Item Dedicated Key Slots & Large SLASH Button -->
+      <div class="right-controls">
+        <div class="item-key-rack" id="itemKeyRack">
+          <button class="item-key-slot locked" data-item-id="HEAL" disabled title="Key [1] or [H] - Slash Heal item to unlock">
+            <span class="key-badge">1/H</span>
+            <span class="slot-tag">+HP</span>
           </button>
-          <span class="label" id="itemBtnLabel">ITEM LOCK</span>
+          <button class="item-key-slot locked" data-item-id="SHIELD" disabled title="Key [2] or [S] - Slash Shield item to unlock">
+            <span class="key-badge">2/S</span>
+            <span class="slot-tag">SHD</span>
+          </button>
+          <button class="item-key-slot locked" data-item-id="MEGA_WAVE" disabled title="Key [3] or [W] - Slash Sonic Wave item to unlock">
+            <span class="key-badge">3/W</span>
+            <span class="slot-tag">WAV</span>
+          </button>
+          <button class="item-key-slot locked" data-item-id="THUNDER" disabled title="Key [4] or [T] - Slash Thunder item to unlock">
+            <span class="key-badge">4/T</span>
+            <span class="slot-tag">ZAP</span>
+          </button>
+          <button class="item-key-slot locked" data-item-id="RAGE" disabled title="Key [5] or [R] - Slash Rage item to unlock">
+            <span class="key-badge">5/R</span>
+            <span class="slot-tag">2X</span>
+          </button>
         </div>
+
         <div class="btn-wrapper">
           <button id="btnAttack" class="arcade-btn blue slash-big">SLASH</button>
           <span class="label">SLASH</span>

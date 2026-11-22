@@ -1,20 +1,21 @@
-// Frog Knight vs Boss Fly - Created by Rylan Saw
+// Frog Knight vs Boss Fly & Spider - Created by Rylan Saw
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // UI Elements
 const overlay = document.getElementById('overlay');
+const pauseOverlay = document.getElementById('pauseOverlay');
 const overlayTitle = document.getElementById('overlayTitle');
 const overlaySubtitle = document.getElementById('overlaySubtitle');
 const startBtn = document.getElementById('startBtn');
+const resumeBtn = document.getElementById('resumeBtn');
+const pauseBtn = document.getElementById('pauseBtn');
 const soundToggleBtn = document.getElementById('soundToggleBtn');
 const restartBtn = document.getElementById('restartBtn');
 const btnAttack = document.getElementById('btnAttack');
-const btnItem = document.getElementById('btnItem');
-const itemBtnIcon = document.getElementById('itemBtnIcon');
-const itemBtnLabel = document.getElementById('itemBtnLabel');
 const joystickZone = document.getElementById('joystickZone');
 const joystickStick = document.getElementById('joystickStick');
+const itemSlotButtons = Array.from(document.querySelectorAll('.item-key-slot'));
 
 // --- 16-BIT WEB AUDIO SYNTHESIZER ---
 let audioCtx = null;
@@ -83,12 +84,12 @@ function playSound(type) {
     osc.stop(now + 0.25);
   } else if (type === 'bossRoar') {
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(110, now);
-    osc.frequency.linearRampToValueAtTime(65, now + 0.55);
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+    osc.frequency.setValueAtTime(115, now);
+    osc.frequency.linearRampToValueAtTime(55, now + 0.6);
+    gain.gain.setValueAtTime(0.32, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
     osc.start(now);
-    osc.stop(now + 0.55);
+    osc.stop(now + 0.6);
   } else if (type === 'jump') {
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(180, now);
@@ -118,15 +119,24 @@ function playSound(type) {
 }
 
 // --- GAME CONSTANTS & STATE ---
-const GROUND_Y = 330;
-const BOSS_SPAWN_SECONDS = 50;
+// Wave Flow:
+// 1 = Small Flies (0s to 50s)
+// 2 = Giant Boss Fly (at 50s)
+// 3 = Small Spiders (after Boss Fly is defeated)
+// 4 = Giant Boss Spider (after Small Spiders wave is cleared)
+const GROUND_Y = 400;
+const BOSS_FLY_SPAWN_SECONDS = 50;
+const SMALL_SPIDERS_TO_CLEAR = 8;
 
 let gameRunning = false;
+let gamePaused = false;
+let pausedAt = 0;
 let screenShake = 0;
 let startTime = 0;
 let elapsedSeconds = 0;
-let stage = 1;
+let wavePhase = 1;
 let score = 0;
+let spidersDefeatedInWave = 0;
 
 const keys = { left: false, right: false, up: false };
 let joyX = 0;
@@ -135,32 +145,35 @@ let popups = [];
 let particles = [];
 let shockwaves = [];
 let smallFlies = [];
+let smallSpiders = [];
 let items = [];
 let smallFlySpawnTimer = 0;
+let smallSpiderSpawnTimer = 0;
 let itemSpawnTimer = 180;
 
+// --- ITEM TYPES WITH DEDICATED KEYS ---
 const ITEM_TYPES = [
   {
     id: 'HEAL',
     name: 'HEAL POTION',
-    shortName: 'HEAL',
-    icon: '+HP',
+    shortName: '+HP',
+    keys: ['Digit1', 'Numpad1', 'KeyH'],
     color: '#2ecc71',
     desc: '+45 HP RESTORED!'
   },
   {
     id: 'SHIELD',
     name: 'GOLD SHIELD',
-    shortName: 'SHIELD',
-    icon: 'SHD',
+    shortName: 'SHD',
+    keys: ['Digit2', 'Numpad2', 'KeyS'],
     color: '#f1c40f',
     desc: 'INVINCIBLE SHIELD!'
   },
   {
     id: 'MEGA_WAVE',
     name: 'SONIC WAVE',
-    shortName: 'WAVE',
-    icon: 'WAV',
+    shortName: 'WAV',
+    keys: ['Digit3', 'Numpad3', 'KeyW'],
     color: '#4deeea',
     desc: 'GIANT SLASH WAVE!'
   },
@@ -168,29 +181,29 @@ const ITEM_TYPES = [
     id: 'THUNDER',
     name: 'THUNDER ORB',
     shortName: 'ZAP',
-    icon: 'ZAP',
+    keys: ['Digit4', 'Numpad4', 'KeyT'],
     color: '#ffe700',
     desc: 'LIGHTNING STRIKE!'
   },
   {
     id: 'RAGE',
     name: 'DRAGON RAGE',
-    shortName: 'RAGE',
-    icon: '2X',
+    shortName: '2X',
+    keys: ['Digit5', 'Numpad5', 'KeyR'],
     color: '#ff3b30',
     desc: '2X GIANT SLASH!'
   }
 ];
 
 const frog = {
-  x: 180,
+  x: 200,
   y: GROUND_Y,
   w: 44,
   h: 48,
   vx: 0,
   vy: 0,
-  speed: 4.8,
-  jumpPower: -12.8,
+  speed: 5.2,
+  jumpPower: -13.5,
   grounded: true,
   facing: 1,
   hp: 100,
@@ -203,45 +216,81 @@ const frog = {
   hitIdsThisSwing: new Set(),
   combo: 0,
   comboTimer: 0,
-  heldItem: null
+  unlockedItems: {
+    HEAL: false,
+    SHIELD: false,
+    MEGA_WAVE: false,
+    THUNDER: false,
+    RAGE: false
+  }
 };
 
-const boss = {
+const bossFly = {
   active: false,
-  x: 620,
+  defeated: false,
+  x: 720,
   y: -100,
   w: 112,
   h: 98,
-  hp: 600,
-  maxHp: 600,
+  hp: 520,
+  maxHp: 520,
   vx: -2,
   vy: 0,
   state: 'entering',
-  stateTimer: 90,
+  stateTimer: 80,
   wingFrame: 0,
   flashTimer: 0
 };
 
-function updateItemButtonUI() {
-  if (frog.heldItem) {
-    btnItem.disabled = false;
-    btnItem.classList.remove('disabled');
-    btnItem.style.background = `radial-gradient(circle at 35% 35%, #ffffff, ${frog.heldItem.color} 70%, #111 100%)`;
-    itemBtnIcon.textContent = frog.heldItem.icon;
-    itemBtnLabel.textContent = frog.heldItem.shortName;
-    itemBtnLabel.style.color = frog.heldItem.color;
+const bossSpider = {
+  active: false,
+  defeated: false,
+  x: 760,
+  y: GROUND_Y,
+  w: 136,
+  h: 96,
+  hp: 750,
+  maxHp: 750,
+  vx: -2.4,
+  vy: 0,
+  state: 'walk',
+  stateTimer: 95,
+  legFrame: 0,
+  flashTimer: 0
+};
+
+function syncItemSlotsUI() {
+  itemSlotButtons.forEach((btn) => {
+    const id = btn.dataset.itemId;
+    const itemDef = ITEM_TYPES.find((it) => it.id === id);
+    const unlocked = Boolean(frog.unlockedItems[id]);
+    btn.disabled = !unlocked;
+    btn.classList.toggle('unlocked', unlocked);
+    btn.classList.toggle('locked', !unlocked);
+    if (itemDef) {
+      btn.style.setProperty('--slot-color', itemDef.color);
+    }
+  });
+}
+
+function togglePause(forceState = null) {
+  if (!gameRunning) return;
+  const nextPaused = forceState !== null ? forceState : !gamePaused;
+  if (nextPaused === gamePaused) return;
+
+  if (nextPaused) {
+    gamePaused = true;
+    pausedAt = performance.now();
+    pauseOverlay.classList.remove('hidden');
   } else {
-    btnItem.disabled = true;
-    btnItem.classList.add('disabled');
-    btnItem.style.background = '';
-    itemBtnIcon.textContent = '?';
-    itemBtnLabel.textContent = 'ITEM LOCK';
-    itemBtnLabel.style.color = '#e6d5c3';
+    gamePaused = false;
+    startTime += performance.now() - pausedAt;
+    pauseOverlay.classList.add('hidden');
   }
 }
 
 function resetGame() {
-  frog.x = 180;
+  frog.x = 200;
   frog.y = GROUND_Y;
   frog.vx = 0;
   frog.vy = 0;
@@ -252,29 +301,47 @@ function resetGame() {
   frog.attackTimer = 0;
   frog.combo = 0;
   frog.comboTimer = 0;
-  frog.heldItem = null;
-  updateItemButtonUI();
+  Object.keys(frog.unlockedItems).forEach((k) => {
+    frog.unlockedItems[k] = false;
+  });
+  syncItemSlotsUI();
 
-  boss.active = false;
-  boss.x = 620;
-  boss.y = -100;
-  boss.hp = 600;
-  boss.maxHp = 600;
-  boss.state = 'entering';
-  boss.flashTimer = 0;
+  bossFly.active = false;
+  bossFly.defeated = false;
+  bossFly.x = 720;
+  bossFly.y = -100;
+  bossFly.hp = 520;
+  bossFly.maxHp = 520;
+  bossFly.state = 'entering';
+  bossFly.flashTimer = 0;
+
+  bossSpider.active = false;
+  bossSpider.defeated = false;
+  bossSpider.x = 760;
+  bossSpider.y = GROUND_Y;
+  bossSpider.hp = 750;
+  bossSpider.maxHp = 750;
+  bossSpider.state = 'walk';
+  bossSpider.flashTimer = 0;
 
   smallFlies = [];
+  smallSpiders = [];
   items = [];
   popups = [];
   particles = [];
   shockwaves = [];
 
-  stage = 1;
+  wavePhase = 1;
   score = 0;
+  spidersDefeatedInWave = 0;
+  gamePaused = false;
+  pauseOverlay.classList.add('hidden');
+
   startTime = performance.now();
   elapsedSeconds = 0;
-  smallFlySpawnTimer = 30;
-  itemSpawnTimer = 140;
+  smallFlySpawnTimer = 25;
+  smallSpiderSpawnTimer = 40;
+  itemSpawnTimer = 130;
 
   spawnSmallFly();
   spawnSmallFly();
@@ -289,12 +356,12 @@ function spawnSmallFly() {
   smallFlies.push({
     id: Math.random(),
     x: fromLeft ? -30 : canvas.width + 30,
-    y: 110 + Math.random() * 165,
-    w: 34,
-    h: 30,
+    y: 130 + Math.random() * 190,
+    w: 36,
+    h: 32,
     hp: 24,
     maxHp: 24,
-    vx: fromLeft ? 2.4 + Math.random() * 1.5 : -(2.4 + Math.random() * 1.5),
+    vx: fromLeft ? 2.6 + Math.random() * 1.5 : -(2.6 + Math.random() * 1.5),
     vy: 0,
     wingFrame: Math.random() * 6,
     flashTimer: 0,
@@ -302,16 +369,34 @@ function spawnSmallFly() {
   });
 }
 
-function spawnItem() {
-  if (items.length >= 2) return;
-  const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+function spawnSmallSpider() {
+  const fromLeft = Math.random() < 0.45;
+  smallSpiders.push({
+    id: Math.random(),
+    x: fromLeft ? -35 : canvas.width + 35,
+    y: GROUND_Y,
+    w: 44,
+    h: 34,
+    hp: 30,
+    maxHp: 30,
+    vx: fromLeft ? 2.7 + Math.random() * 1.3 : -(2.7 + Math.random() * 1.3),
+    vy: 0,
+    legFrame: Math.random() * 6,
+    flashTimer: 0,
+    hopCooldown: 55 + Math.random() * 75
+  });
+}
+
+function spawnItem(specificType = null) {
+  if (items.length >= 3) return;
+  const type = specificType || ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
   items.push({
     id: Math.random(),
     type,
-    x: 140 + Math.random() * (canvas.width - 280),
-    y: 130 + Math.random() * 155,
+    x: 150 + Math.random() * (canvas.width - 300),
+    y: 150 + Math.random() * 185,
     bobOffset: Math.random() * Math.PI * 2,
-    life: 650
+    life: 720
   });
 }
 
@@ -321,7 +406,7 @@ function spawnPopup(text, x, y, color = '#ffffff', scale = 1) {
     x,
     y,
     vy: -1.35,
-    life: 46,
+    life: 48,
     color,
     scale
   });
@@ -344,7 +429,7 @@ function spawnSparks(x, y, color, count = 14) {
 }
 
 function triggerJump() {
-  if (!gameRunning) return;
+  if (!gameRunning || gamePaused) return;
   if (frog.grounded) {
     frog.vy = frog.jumpPower;
     frog.grounded = false;
@@ -354,7 +439,7 @@ function triggerJump() {
 }
 
 function triggerSlash() {
-  if (!gameRunning) return;
+  if (!gameRunning || gamePaused) return;
   if (frog.attackCooldown <= 0) {
     frog.attackTimer = 16;
     frog.attackCooldown = 19;
@@ -363,61 +448,105 @@ function triggerSlash() {
     const isRage = frog.rageTimer > 0;
     spawnPopup(
       isRage ? 'MEGA SLASH!' : 'GIANT SLASH!',
-      frog.x + frog.facing * 50,
-      frog.y - 68,
+      frog.x + frog.facing * 55,
+      frog.y - 72,
       isRage ? '#ff3b30' : '#ffffff',
       isRage ? 1.15 : 1.0
     );
   }
 }
 
-function triggerUseItem() {
-  if (!gameRunning || !frog.heldItem) return;
+function activateItemById(itemId) {
+  if (!gameRunning || gamePaused) return;
+  if (!frog.unlockedItems[itemId]) return;
 
-  const item = frog.heldItem;
-  frog.heldItem = null;
-  updateItemButtonUI();
+  const itemDef = ITEM_TYPES.find((it) => it.id === itemId);
+  if (!itemDef) return;
+
+  frog.unlockedItems[itemId] = false;
+  syncItemSlotsUI();
   playSound('itemUse');
   screenShake = 10;
 
-  spawnPopup(item.desc, frog.x, frog.y - 75, item.color, 1.1);
-  spawnSparks(frog.x, frog.y - 30, item.color, 26);
+  spawnPopup(itemDef.desc, frog.x, frog.y - 78, itemDef.color, 1.1);
+  spawnSparks(frog.x, frog.y - 30, itemDef.color, 26);
 
-  if (item.id === 'HEAL') {
+  if (itemId === 'HEAL') {
     frog.hp = Math.min(frog.maxHp, frog.hp + 45);
-  } else if (item.id === 'SHIELD') {
+  } else if (itemId === 'SHIELD') {
     frog.shieldTimer = 420;
-  } else if (item.id === 'RAGE') {
+  } else if (itemId === 'RAGE') {
     frog.rageTimer = 480;
-  } else if (item.id === 'MEGA_WAVE') {
+  } else if (itemId === 'MEGA_WAVE') {
     shockwaves.push({
-      x: frog.x + frog.facing * 40,
-      y: frog.y - 50,
-      vx: frog.facing * 11,
-      radius: 75,
-      damage: 85,
-      life: 65,
+      x: frog.x + frog.facing * 45,
+      y: frog.y - 52,
+      vx: frog.facing * 12,
+      radius: 85,
+      damage: 95,
+      life: 75,
       color: '#4deeea'
     });
-  } else if (item.id === 'THUNDER') {
+  } else if (itemId === 'THUNDER') {
     smallFlies.forEach((fly) => {
       fly.hp = 0;
       score += 50;
       spawnSparks(fly.x, fly.y, '#ffe700', 15);
       spawnPopup('ZAP!', fly.x, fly.y - 20, '#ffe700', 1.0);
     });
-    if (boss.active) {
-      boss.hp = Math.max(0, boss.hp - 95);
-      boss.flashTimer = 14;
-      spawnSparks(boss.x, boss.y, '#ffe700', 28);
-      spawnPopup('-95 ZAP!', boss.x, boss.y - 50, '#ffe700', 1.3);
-      if (boss.hp <= 0) endGame(true);
+    smallSpiders.forEach((sp) => {
+      sp.hp = 0;
+      score += 60;
+      spidersDefeatedInWave++;
+      spawnSparks(sp.x, sp.y - 15, '#ffe700', 15);
+      spawnPopup('ZAP!', sp.x, sp.y - 30, '#ffe700', 1.0);
+    });
+    if (bossFly.active) {
+      bossFly.hp = Math.max(0, bossFly.hp - 105);
+      bossFly.flashTimer = 14;
+      spawnSparks(bossFly.x, bossFly.y, '#ffe700', 28);
+      spawnPopup('-105 ZAP!', bossFly.x, bossFly.y - 50, '#ffe700', 1.3);
     }
+    if (bossSpider.active) {
+      bossSpider.hp = Math.max(0, bossSpider.hp - 115);
+      bossSpider.flashTimer = 14;
+      spawnSparks(bossSpider.x, bossSpider.y - 30, '#ffe700', 28);
+      spawnPopup('-115 ZAP!', bossSpider.x, bossSpider.y - 65, '#ffe700', 1.3);
+      if (bossSpider.hp <= 0) {
+        score += 2000;
+        endGame(true);
+      }
+    }
+  }
+}
+
+function handleSmallSpiderDefeated(sp) {
+  score += 60;
+  spidersDefeatedInWave++;
+  if (Math.random() < 0.35) spawnItem();
+
+  if (wavePhase === 3 && spidersDefeatedInWave >= SMALL_SPIDERS_TO_CLEAR) {
+    smallSpiders = [];
+    wavePhase = 4;
+    bossSpider.active = true;
+    bossSpider.x = canvas.width - 130;
+    bossSpider.y = GROUND_Y;
+    bossSpider.state = 'walk';
+    bossSpider.stateTimer = 80;
+    screenShake = 20;
+    playSound('bossRoar');
+    spawnPopup('WARNING! GIANT BOSS SPIDER!', canvas.width / 2, 180, '#ff3b30', 1.35);
   }
 }
 
 // --- CONTROLS: KEYBOARD ---
 window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyP' || e.code === 'Escape') {
+    e.preventDefault();
+    togglePause();
+    return;
+  }
+
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
   if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
   if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') {
@@ -427,9 +556,13 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyZ' || e.code === 'KeyJ') {
     triggerSlash();
   }
-  if (e.code === 'KeyX' || e.code === 'KeyK' || e.code === 'ShiftLeft') {
-    triggerUseItem();
-  }
+
+  // Dedicated per-item keys
+  ITEM_TYPES.forEach((itemDef) => {
+    if (itemDef.keys.includes(e.code)) {
+      activateItemById(itemDef.id);
+    }
+  });
 });
 
 window.addEventListener('keyup', (e) => {
@@ -438,7 +571,7 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.up = false;
 });
 
-// --- CONTROLS: VIRTUAL JOYSTICK (Move & Up-Flick Jump) ---
+// --- CONTROLS: VIRTUAL JOYSTICK ---
 let draggingStick = false;
 const maxRadius = 28;
 
@@ -484,7 +617,6 @@ joystickZone.addEventListener('pointermove', (e) => {
 joystickZone.addEventListener('pointerup', resetJoystick);
 joystickZone.addEventListener('pointercancel', resetJoystick);
 
-// Right SLASH & ITEM Buttons
 btnAttack.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   initAudio();
@@ -494,16 +626,28 @@ btnAttack.addEventListener('pointerdown', (e) => {
 btnAttack.addEventListener('pointerup', () => btnAttack.classList.remove('pressed'));
 btnAttack.addEventListener('pointerleave', () => btnAttack.classList.remove('pressed'));
 
-btnItem.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  initAudio();
-  if (!btnItem.disabled) {
-    btnItem.classList.add('pressed');
-    triggerUseItem();
-  }
+itemSlotButtons.forEach((btn) => {
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    initAudio();
+    if (!btn.disabled) {
+      btn.classList.add('pressed');
+      activateItemById(btn.dataset.itemId);
+    }
+  });
+  btn.addEventListener('pointerup', () => btn.classList.remove('pressed'));
+  btn.addEventListener('pointerleave', () => btn.classList.remove('pressed'));
 });
-btnItem.addEventListener('pointerup', () => btnItem.classList.remove('pressed'));
-btnItem.addEventListener('pointerleave', () => btnItem.classList.remove('pressed'));
+
+pauseBtn.addEventListener('click', () => {
+  initAudio();
+  togglePause();
+});
+
+resumeBtn.addEventListener('click', () => {
+  initAudio();
+  togglePause(false);
+});
 
 startBtn.addEventListener('click', () => {
   initAudio();
@@ -522,22 +666,26 @@ soundToggleBtn.addEventListener('click', () => {
 
 // --- UPDATE LOOP ---
 function update() {
-  if (!gameRunning) return;
+  if (!gameRunning || gamePaused) return;
 
   if (screenShake > 0) screenShake--;
 
-  elapsedSeconds = (performance.now() - startTime) / 1000;
-  if (stage === 1 && elapsedSeconds >= BOSS_SPAWN_SECONDS) {
-    stage = 2;
-    boss.active = true;
-    boss.state = 'entering';
-    boss.x = 600;
-    boss.y = -80;
-    screenShake = 18;
-    playSound('bossRoar');
-    spawnPopup('WARNING! GIANT BOSS FLY!', canvas.width / 2, 160, '#ff3b30', 1.35);
+  // Wave 1 (0-50s Small Flies) -> Wave 2 (50s Giant Boss Fly)
+  if (wavePhase === 1) {
+    elapsedSeconds = (performance.now() - startTime) / 1000;
+    if (elapsedSeconds >= BOSS_FLY_SPAWN_SECONDS) {
+      wavePhase = 2;
+      bossFly.active = true;
+      bossFly.state = 'entering';
+      bossFly.x = 700;
+      bossFly.y = -90;
+      screenShake = 18;
+      playSound('bossRoar');
+      spawnPopup('WARNING! GIANT BOSS FLY!', canvas.width / 2, 180, '#ff3b30', 1.35);
+    }
   }
 
+  // Frog Movement
   let moveDir = 0;
   if (keys.left) moveDir -= 1;
   if (keys.right) moveDir += 1;
@@ -548,9 +696,9 @@ function update() {
   if (moveDir < -0.1) frog.facing = -1;
 
   frog.x += frog.vx;
-  frog.x = Math.max(60, Math.min(canvas.width - 100, frog.x));
+  frog.x = Math.max(70, Math.min(canvas.width - 110, frog.x));
 
-  frog.vy += 0.62;
+  frog.vy += 0.65;
   frog.y += frog.vy;
   if (frog.y >= GROUND_Y) {
     frog.y = GROUND_Y;
@@ -569,47 +717,72 @@ function update() {
     if (frog.comboTimer <= 0) frog.combo = 0;
   }
 
-  smallFlySpawnTimer--;
-  if (smallFlySpawnTimer <= 0) {
-    const maxFlies = stage === 1 ? 5 : 2;
-    if (smallFlies.length < maxFlies) {
-      spawnSmallFly();
+  // Spawn Small Flies in Wave 1 & Wave 2
+  if (wavePhase === 1 || wavePhase === 2) {
+    smallFlySpawnTimer--;
+    if (smallFlySpawnTimer <= 0) {
+      const maxFlies = wavePhase === 1 ? 6 : 2;
+      if (smallFlies.length < maxFlies) spawnSmallFly();
+      smallFlySpawnTimer = wavePhase === 1 ? 80 : 220;
     }
-    smallFlySpawnTimer = stage === 1 ? 85 : 220;
   }
 
+  // Spawn Small Spiders in Wave 3 (after Boss Fly dies)
+  if (wavePhase === 3) {
+    smallSpiderSpawnTimer--;
+    if (smallSpiderSpawnTimer <= 0) {
+      const remainingNeeded = SMALL_SPIDERS_TO_CLEAR - spidersDefeatedInWave;
+      if (smallSpiders.length < Math.min(4, remainingNeeded)) {
+        spawnSmallSpider();
+      }
+      smallSpiderSpawnTimer = 75;
+    }
+  }
+
+  // Spawn Items periodically
   itemSpawnTimer--;
   if (itemSpawnTimer <= 0) {
     spawnItem();
-    itemSpawnTimer = 260;
+    itemSpawnTimer = 240;
   }
 
+  // --- GIANT SLASH HITBOX ---
   if (frog.attackTimer > 0) {
     const isRage = frog.rageTimer > 0;
-    const slashReach = isRage ? 165 : 130;
-    const slashHeight = isRage ? 135 : 110;
+    const slashReach = isRage ? 185 : 148;
+    const slashHeight = isRage ? 150 : 122;
     const swordX = frog.facing === 1 ? frog.x + 5 : frog.x - slashReach - 5;
     const swordY = frog.y - slashHeight + 10;
 
+    // 1. Slash Floating Items -> Unlock its dedicated key slot!
     items.forEach((it) => {
       if (
         !frog.hitIdsThisSwing.has(it.id) &&
-        swordX < it.x + 24 &&
-        swordX + slashReach > it.x - 24 &&
-        swordY < it.y + 24 &&
-        swordY + slashHeight > it.y - 24
+        swordX < it.x + 26 &&
+        swordX + slashReach > it.x - 26 &&
+        swordY < it.y + 26 &&
+        swordY + slashHeight > it.y - 26
       ) {
         frog.hitIdsThisSwing.add(it.id);
         it.life = 0;
-        frog.heldItem = it.type;
-        updateItemButtonUI();
+        frog.unlockedItems[it.type.id] = true;
+        syncItemSlotsUI();
         playSound('itemGet');
-        spawnPopup(`GOT ${it.type.name}!`, it.x, it.y - 25, it.type.color, 1.0);
-        spawnPopup('ITEM UNLOCKED!', frog.x, frog.y - 80, '#ffffff', 0.85);
+        const keyHint = it.type.keys.includes('Digit1')
+          ? '[1 / H]'
+          : it.type.keys.includes('Digit2')
+          ? '[2 / S]'
+          : it.type.keys.includes('Digit3')
+          ? '[3 / W]'
+          : it.type.keys.includes('Digit4')
+          ? '[4 / T]'
+          : '[5 / R]';
+        spawnPopup(`GOT ${it.type.shortName} ${keyHint}!`, it.x, it.y - 25, it.type.color, 1.0);
         spawnSparks(it.x, it.y, it.type.color, 18);
       }
     });
 
+    // 2. Slash Small Flies
     smallFlies.forEach((fly) => {
       if (
         !frog.hitIdsThisSwing.has(fly.id) &&
@@ -621,16 +794,13 @@ function update() {
         frog.hitIdsThisSwing.add(fly.id);
         frog.combo++;
         frog.comboTimer = 150;
-        const dmg = isRage ? 30 : 15;
-        fly.hp -= dmg;
+        fly.hp -= isRage ? 30 : 15;
         fly.flashTimer = 6;
-        fly.vx = frog.facing * 5;
+        fly.vx = frog.facing * 5.5;
         screenShake = 5;
-
         playSound('hit');
         spawnPopup('KAPOW!', fly.x, fly.y - 25, '#4deeea', 1.0);
         spawnSparks(fly.x, fly.y, '#ff9f1c', 12);
-
         if (fly.hp <= 0) {
           score += 50;
           if (Math.random() < 0.35) spawnItem();
@@ -638,41 +808,100 @@ function update() {
       }
     });
 
+    // 3. Slash Small Spiders (behaving like small flies in ground/hop motion)
+    smallSpiders.forEach((sp) => {
+      if (
+        !frog.hitIdsThisSwing.has(sp.id) &&
+        swordX < sp.x + sp.w / 2 &&
+        swordX + slashReach > sp.x - sp.w / 2 &&
+        swordY < sp.y + 10 &&
+        swordY + slashHeight > sp.y - sp.h - 15
+      ) {
+        frog.hitIdsThisSwing.add(sp.id);
+        frog.combo++;
+        frog.comboTimer = 150;
+        sp.hp -= isRage ? 32 : 16;
+        sp.flashTimer = 6;
+        sp.vx = frog.facing * 6;
+        sp.vy = -5.5;
+        screenShake = 6;
+        playSound('hit');
+        spawnPopup('KAPOW!', sp.x, sp.y - 40, '#c084fc', 1.0);
+        spawnSparks(sp.x, sp.y - 16, '#c084fc', 12);
+        if (sp.hp <= 0) {
+          handleSmallSpiderDefeated(sp);
+        }
+      }
+    });
+
+    // 4. Slash Giant Boss Fly (Wave 2)
     if (
-      boss.active &&
-      !frog.hitIdsThisSwing.has('boss') &&
-      swordX < boss.x + boss.w / 2 &&
-      swordX + slashReach > boss.x - boss.w / 2 &&
-      swordY < boss.y + boss.h / 2 &&
-      swordY + slashHeight > boss.y - boss.h / 2
+      bossFly.active &&
+      !frog.hitIdsThisSwing.has('bossFly') &&
+      swordX < bossFly.x + bossFly.w / 2 &&
+      swordX + slashReach > bossFly.x - bossFly.w / 2 &&
+      swordY < bossFly.y + bossFly.h / 2 &&
+      swordY + slashHeight > bossFly.y - bossFly.h / 2
     ) {
-      frog.hitIdsThisSwing.add('boss');
+      frog.hitIdsThisSwing.add('bossFly');
       frog.combo++;
       frog.comboTimer = 150;
-
       const isMega = frog.combo >= 5 || isRage;
-      const damage = isMega ? 34 : 18;
-      boss.hp = Math.max(0, boss.hp - damage);
-      boss.flashTimer = 8;
-      screenShake = isMega ? 11 : 6;
+      const damage = isMega ? 36 : 20;
+      bossFly.hp = Math.max(0, bossFly.hp - damage);
+      bossFly.flashTimer = 8;
+      screenShake = isMega ? 12 : 6;
+      playSound(isMega ? 'mega' : 'hit');
+      spawnPopup(isMega ? 'MEGA KAPOW!' : 'KAPOW!', bossFly.x - 20, bossFly.y - 50, isMega ? '#ff3b30' : '#4deeea', isMega ? 1.3 : 1.1);
+      spawnSparks(bossFly.x, bossFly.y, isMega ? '#ffe700' : '#ff9f1c', isMega ? 22 : 14);
 
-      if (isMega) {
-        playSound('mega');
-        spawnPopup('MEGA KAPOW!', boss.x - 20, boss.y - 50, '#ff3b30', 1.3);
-        spawnSparks(boss.x, boss.y, '#ffe700', 22);
-      } else {
-        playSound('hit');
-        spawnPopup('KAPOW!', boss.x - 15, boss.y - 45, '#4deeea', 1.1);
-        spawnSparks(boss.x, boss.y, '#ff9f1c', 14);
-      }
-
-      if (boss.hp <= 0) {
+      if (bossFly.hp <= 0 && !bossFly.defeated) {
+        bossFly.defeated = true;
+        bossFly.active = false;
+        smallFlies = [];
         score += 1000;
+        wavePhase = 3;
+        spidersDefeatedInWave = 0;
+        smallSpiderSpawnTimer = 25;
+        screenShake = 18;
+        playSound('bossRoar');
+        spawnPopup('BOSS FLY DOWN! SPIDERS INCOMING!', canvas.width / 2, 160, '#c084fc', 1.25);
+        spawnSmallSpider();
+        spawnSmallSpider();
+      }
+    }
+
+    // 5. Slash Giant Boss Spider (Wave 4)
+    if (
+      bossSpider.active &&
+      !frog.hitIdsThisSwing.has('bossSpider') &&
+      swordX < bossSpider.x + bossSpider.w / 2 &&
+      swordX + slashReach > bossSpider.x - bossSpider.w / 2 &&
+      swordY < bossSpider.y + 15 &&
+      swordY + slashHeight > bossSpider.y - bossSpider.h - 20
+    ) {
+      frog.hitIdsThisSwing.add('bossSpider');
+      frog.combo++;
+      frog.comboTimer = 150;
+      const isMega = frog.combo >= 5 || isRage;
+      const damage = isMega ? 38 : 22;
+      bossSpider.hp = Math.max(0, bossSpider.hp - damage);
+      bossSpider.flashTimer = 8;
+      screenShake = isMega ? 13 : 7;
+      playSound(isMega ? 'mega' : 'hit');
+      spawnPopup(isMega ? 'MEGA KAPOW!' : 'KAPOW!', bossSpider.x - 20, bossSpider.y - 70, isMega ? '#ff3b30' : '#c084fc', isMega ? 1.35 : 1.15);
+      spawnSparks(bossSpider.x, bossSpider.y - 35, isMega ? '#ffe700' : '#c084fc', isMega ? 24 : 15);
+
+      if (bossSpider.hp <= 0 && !bossSpider.defeated) {
+        bossSpider.defeated = true;
+        bossSpider.active = false;
+        score += 2000;
         endGame(true);
       }
     }
   }
 
+  // Shockwaves
   shockwaves.forEach((sw) => {
     sw.x += sw.vx;
     sw.life--;
@@ -683,31 +912,57 @@ function update() {
         spawnSparks(fly.x, fly.y, '#4deeea', 12);
       }
     });
-    if (boss.active && Math.hypot(boss.x - sw.x, boss.y - sw.y) < sw.radius + 30) {
-      boss.hp = Math.max(0, boss.hp - sw.damage);
-      boss.flashTimer = 12;
+    smallSpiders.forEach((sp) => {
+      if (Math.hypot(sp.x - sw.x, sp.y - 16 - sw.y) < sw.radius) {
+        sp.hp = 0;
+        handleSmallSpiderDefeated(sp);
+        spawnSparks(sp.x, sp.y - 16, '#4deeea', 12);
+      }
+    });
+    if (bossFly.active && Math.hypot(bossFly.x - sw.x, bossFly.y - sw.y) < sw.radius + 35) {
+      bossFly.hp = Math.max(0, bossFly.hp - sw.damage);
+      bossFly.flashTimer = 12;
       sw.life = 0;
-      spawnPopup(`-${sw.damage} WAVE!`, boss.x, boss.y - 45, '#4deeea', 1.3);
-      spawnSparks(boss.x, boss.y, '#4deeea', 24);
-      if (boss.hp <= 0) endGame(true);
+      spawnPopup(`-${sw.damage} WAVE!`, bossFly.x, bossFly.y - 45, '#4deeea', 1.3);
+      spawnSparks(bossFly.x, bossFly.y, '#4deeea', 24);
+      if (bossFly.hp <= 0 && !bossFly.defeated) {
+        bossFly.defeated = true;
+        bossFly.active = false;
+        smallFlies = [];
+        score += 1000;
+        wavePhase = 3;
+        spidersDefeatedInWave = 0;
+        spawnPopup('BOSS FLY DOWN! SPIDERS INCOMING!', canvas.width / 2, 160, '#c084fc', 1.25);
+      }
+    }
+    if (bossSpider.active && Math.hypot(bossSpider.x - sw.x, bossSpider.y - 35 - sw.y) < sw.radius + 45) {
+      bossSpider.hp = Math.max(0, bossSpider.hp - sw.damage);
+      bossSpider.flashTimer = 12;
+      sw.life = 0;
+      spawnPopup(`-${sw.damage} WAVE!`, bossSpider.x, bossSpider.y - 65, '#4deeea', 1.3);
+      spawnSparks(bossSpider.x, bossSpider.y - 35, '#4deeea', 24);
+      if (bossSpider.hp <= 0) {
+        score += 2000;
+        endGame(true);
+      }
     }
   });
   shockwaves = shockwaves.filter((sw) => sw.life > 0);
 
+  // Small Flies AI
   smallFlies.forEach((fly) => {
     fly.wingFrame += 0.6;
     if (fly.flashTimer > 0) fly.flashTimer--;
-
     const dirToFrog = frog.x > fly.x ? 1 : -1;
     fly.vx += dirToFrog * 0.08;
-    fly.vx = Math.max(-3.5, Math.min(3.5, fly.vx));
+    fly.vx = Math.max(-3.6, Math.min(3.6, fly.vx));
     fly.x += fly.vx;
     fly.y += Math.sin(Date.now() * 0.008 + fly.id * 10) * 1.4;
 
     fly.swoopCooldown--;
     if (fly.swoopCooldown <= 0) {
       fly.swoopCooldown = 120;
-      fly.y = Math.min(GROUND_Y - 25, fly.y + 35);
+      fly.y = Math.min(GROUND_Y - 30, fly.y + 35);
       playSound('buzz');
     }
 
@@ -728,56 +983,99 @@ function update() {
   });
   smallFlies = smallFlies.filter((fly) => fly.hp > 0);
 
+  // Small Spiders AI (Mirroring small flies behavior with ground/hop movement)
+  smallSpiders.forEach((sp) => {
+    sp.legFrame += 0.45;
+    if (sp.flashTimer > 0) sp.flashTimer--;
+
+    const dirToFrog = frog.x > sp.x ? 1 : -1;
+    sp.vx += dirToFrog * 0.1;
+    sp.vx = Math.max(-3.8, Math.min(3.8, sp.vx));
+    sp.x += sp.vx;
+
+    sp.hopCooldown--;
+    if (sp.hopCooldown <= 0 && sp.y >= GROUND_Y - 1) {
+      sp.hopCooldown = 95 + Math.random() * 55;
+      sp.vy = -8.5;
+      playSound('buzz');
+    }
+
+    sp.vy += 0.55;
+    sp.y += sp.vy;
+    if (sp.y >= GROUND_Y) {
+      sp.y = GROUND_Y;
+      sp.vy = 0;
+    }
+
+    if (
+      frog.invuln <= 0 &&
+      frog.shieldTimer <= 0 &&
+      Math.abs(frog.x - sp.x) < 32 &&
+      Math.abs(frog.y - 18 - (sp.y - 14)) < 28
+    ) {
+      frog.hp = Math.max(0, frog.hp - 12);
+      frog.invuln = 50;
+      frog.combo = 0;
+      screenShake = 7;
+      playSound('hurt');
+      spawnPopup('OUCH!', frog.x, frog.y - 55, '#ff3b30', 0.95);
+      if (frog.hp <= 0) endGame(false);
+    }
+  });
+  smallSpiders = smallSpiders.filter((sp) => sp.hp > 0);
+
+  // Items
   items.forEach((it) => {
     it.life--;
   });
   items = items.filter((it) => it.life > 0);
 
-  if (boss.active) {
-    boss.wingFrame += 0.45;
-    if (boss.flashTimer > 0) boss.flashTimer--;
+  // Giant Boss Fly AI (Wave 2)
+  if (bossFly.active) {
+    bossFly.wingFrame += 0.45;
+    if (bossFly.flashTimer > 0) bossFly.flashTimer--;
 
-    if (boss.state === 'entering') {
-      boss.y += (150 - boss.y) * 0.05;
-      if (Math.abs(boss.y - 150) < 5) {
-        boss.state = 'hover';
-        boss.stateTimer = 75;
+    if (bossFly.state === 'entering') {
+      bossFly.y += (175 - bossFly.y) * 0.05;
+      if (Math.abs(bossFly.y - 175) < 5) {
+        bossFly.state = 'hover';
+        bossFly.stateTimer = 75;
       }
-    } else if (boss.state === 'hover') {
-      const targetX = 400 + Math.cos(Date.now() * 0.0022) * 250;
-      const targetY = 140 + Math.sin(Date.now() * 0.005) * 35;
-      boss.x += (targetX - boss.x) * 0.05;
-      boss.y += (targetY - boss.y) * 0.05;
+    } else if (bossFly.state === 'hover') {
+      const targetX = canvas.width / 2 + Math.cos(Date.now() * 0.0022) * 300;
+      const targetY = 165 + Math.sin(Date.now() * 0.005) * 40;
+      bossFly.x += (targetX - bossFly.x) * 0.05;
+      bossFly.y += (targetY - bossFly.y) * 0.05;
 
-      boss.stateTimer--;
-      if (boss.stateTimer <= 0) {
-        boss.state = 'swoop';
-        boss.stateTimer = 65;
-        const angle = Math.atan2(frog.y - 25 - boss.y, frog.x - boss.x);
-        boss.vx = Math.cos(angle) * 7.2;
-        boss.vy = Math.sin(angle) * 7.2;
+      bossFly.stateTimer--;
+      if (bossFly.stateTimer <= 0) {
+        bossFly.state = 'swoop';
+        bossFly.stateTimer = 65;
+        const angle = Math.atan2(frog.y - 25 - bossFly.y, frog.x - bossFly.x);
+        bossFly.vx = Math.cos(angle) * 7.6;
+        bossFly.vy = Math.sin(angle) * 7.6;
         playSound('buzz');
-        spawnPopup('BUZZZ!', boss.x + 30, boss.y - 45, '#ffe700', 1.15);
+        spawnPopup('BUZZZ!', bossFly.x + 30, bossFly.y - 45, '#ffe700', 1.15);
       }
-    } else if (boss.state === 'swoop') {
-      boss.x += boss.vx;
-      boss.y += boss.vy;
-      if (boss.y > GROUND_Y - 30) {
-        boss.y = GROUND_Y - 30;
-        boss.vy = -3.2;
+    } else if (bossFly.state === 'swoop') {
+      bossFly.x += bossFly.vx;
+      bossFly.y += bossFly.vy;
+      if (bossFly.y > GROUND_Y - 35) {
+        bossFly.y = GROUND_Y - 35;
+        bossFly.vy = -3.4;
       }
-      boss.stateTimer--;
-      if (boss.stateTimer <= 0) {
-        boss.state = 'hover';
-        boss.stateTimer = 80;
+      bossFly.stateTimer--;
+      if (bossFly.stateTimer <= 0) {
+        bossFly.state = 'hover';
+        bossFly.stateTimer = 80;
       }
     }
 
     if (
       frog.invuln <= 0 &&
       frog.shieldTimer <= 0 &&
-      Math.abs(frog.x - boss.x) < 52 &&
-      Math.abs(frog.y - 24 - boss.y) < 52
+      Math.abs(frog.x - bossFly.x) < 54 &&
+      Math.abs(frog.y - 24 - bossFly.y) < 54
     ) {
       frog.hp = Math.max(0, frog.hp - 18);
       frog.invuln = 55;
@@ -786,6 +1084,60 @@ function update() {
       playSound('hurt');
       spawnPopup('OUCH!', frog.x - 10, frog.y - 60, '#ff3b30', 1.05);
       spawnSparks(frog.x, frog.y - 20, '#ff3b30', 14);
+      if (frog.hp <= 0) endGame(false);
+    }
+  }
+
+  // Giant Boss Spider AI (Wave 4)
+  if (bossSpider.active) {
+    bossSpider.legFrame += 0.35;
+    if (bossSpider.flashTimer > 0) bossSpider.flashTimer--;
+
+    bossSpider.stateTimer--;
+    if (bossSpider.state === 'walk') {
+      const dir = frog.x > bossSpider.x ? 1 : -1;
+      bossSpider.vx += dir * 0.14;
+      bossSpider.vx = Math.max(-4.2, Math.min(4.2, bossSpider.vx));
+      bossSpider.x += bossSpider.vx;
+      bossSpider.x = Math.max(120, Math.min(canvas.width - 120, bossSpider.x));
+
+      if (bossSpider.stateTimer <= 0) {
+        bossSpider.state = 'lunge';
+        bossSpider.stateTimer = 45;
+        bossSpider.vy = -12.5;
+        bossSpider.vx = (frog.x > bossSpider.x ? 1 : -1) * 7.5;
+        playSound('bossRoar');
+        spawnPopup('HISS-LUNGE!', bossSpider.x, bossSpider.y - 85, '#c084fc', 1.2);
+      }
+    } else if (bossSpider.state === 'lunge') {
+      bossSpider.x += bossSpider.vx;
+      bossSpider.vy += 0.62;
+      bossSpider.y += bossSpider.vy;
+      if (bossSpider.y >= GROUND_Y) {
+        bossSpider.y = GROUND_Y;
+        bossSpider.vy = 0;
+        screenShake = 11;
+        spawnSparks(bossSpider.x, GROUND_Y, '#c084fc', 16);
+      }
+      if (bossSpider.stateTimer <= 0 && bossSpider.y >= GROUND_Y) {
+        bossSpider.state = 'walk';
+        bossSpider.stateTimer = 85;
+      }
+    }
+
+    if (
+      frog.invuln <= 0 &&
+      frog.shieldTimer <= 0 &&
+      Math.abs(frog.x - bossSpider.x) < 62 &&
+      Math.abs(frog.y - 24 - (bossSpider.y - 34)) < 54
+    ) {
+      frog.hp = Math.max(0, frog.hp - 22);
+      frog.invuln = 55;
+      frog.combo = 0;
+      screenShake = 10;
+      playSound('hurt');
+      spawnPopup('OUCH!', frog.x - 10, frog.y - 60, '#ff3b30', 1.1);
+      spawnSparks(frog.x, frog.y - 20, '#ff3b30', 16);
       if (frog.hp <= 0) endGame(false);
     }
   }
@@ -807,11 +1159,13 @@ function update() {
 
 function endGame(victory) {
   gameRunning = false;
+  gamePaused = false;
+  pauseOverlay.classList.add('hidden');
   overlay.classList.remove('hidden');
   if (victory) {
     overlayTitle.textContent = 'VICTORY!';
     overlayTitle.style.color = '#ffe700';
-    overlaySubtitle.textContent = `GIANT BOSS FLY DEFEATED! SCORE: ${score}`;
+    overlaySubtitle.textContent = `ALL BOSSES DEFEATED! SCORE: ${score}`;
   } else {
     overlayTitle.textContent = 'GAME OVER';
     overlayTitle.style.color = '#ff3b30';
@@ -820,12 +1174,17 @@ function endGame(victory) {
   startBtn.textContent = 'PLAY AGAIN';
 }
 
+// --- DRAWING & 16-BIT PIXEL ART RENDERING ---
 function drawBackground() {
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  if (stage === 2) {
-    grad.addColorStop(0, '#1f0d14');
-    grad.addColorStop(0.6, '#2b1b24');
+  if (wavePhase === 2) {
+    grad.addColorStop(0, '#240f16');
+    grad.addColorStop(0.6, '#331d27');
     grad.addColorStop(1, '#0c1c12');
+  } else if (wavePhase === 3 || wavePhase === 4) {
+    grad.addColorStop(0, '#180e29');
+    grad.addColorStop(0.6, '#27193d');
+    grad.addColorStop(1, '#0d1424');
   } else {
     grad.addColorStop(0, '#0f2318');
     grad.addColorStop(0.6, '#1b3b28');
@@ -834,35 +1193,38 @@ function drawBackground() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Background Trees
   ctx.fillStyle = '#12291c';
-  const treePositions = [50, 170, 310, 490, 640, 750];
+  const treePositions = [60, 210, 380, 580, 760, 890];
   treePositions.forEach((tx, idx) => {
-    const w = 36 + (idx % 3) * 14;
-    ctx.fillRect(tx, 0, w, 310);
+    const w = 42 + (idx % 3) * 14;
+    ctx.fillRect(tx, 0, w, 380);
     ctx.fillStyle = '#1b3d29';
-    ctx.fillRect(tx - 8, 0, 6, 130 + (idx * 25) % 90);
-    ctx.fillRect(tx + w + 4, 0, 5, 110 + (idx * 35) % 80);
+    ctx.fillRect(tx - 8, 0, 6, 150 + (idx * 25) % 100);
+    ctx.fillRect(tx + w + 4, 0, 5, 130 + (idx * 35) % 90);
     ctx.fillStyle = '#12291c';
   });
 
+  // Swamp Water below log
   ctx.fillStyle = '#143326';
-  ctx.fillRect(0, 335, canvas.width, 85);
+  ctx.fillRect(0, GROUND_Y + 8, canvas.width, 95);
   ctx.fillStyle = '#24543e';
-  for (let i = 0; i < 12; i++) {
-    const wx = (i * 75 + Date.now() * 0.02) % canvas.width;
-    ctx.fillRect(wx, 355 + (i % 3) * 18, 45, 4);
+  for (let i = 0; i < 14; i++) {
+    const wx = (i * 80 + Date.now() * 0.02) % canvas.width;
+    ctx.fillRect(wx, GROUND_Y + 28 + (i % 3) * 20, 52, 4);
   }
 
+  // Mossy Log Platform
   ctx.fillStyle = '#4a3219';
-  ctx.fillRect(45, GROUND_Y, canvas.width - 90, 34);
+  ctx.fillRect(50, GROUND_Y, canvas.width - 100, 38);
   ctx.fillStyle = '#2e1d0d';
-  ctx.fillRect(45, GROUND_Y + 22, canvas.width - 90, 12);
+  ctx.fillRect(50, GROUND_Y + 24, canvas.width - 100, 14);
 
   ctx.fillStyle = '#49a038';
-  ctx.fillRect(50, GROUND_Y - 4, canvas.width - 100, 10);
+  ctx.fillRect(56, GROUND_Y - 4, canvas.width - 112, 11);
   ctx.fillStyle = '#74d647';
-  for (let x = 60; x < canvas.width - 70; x += 32) {
-    ctx.fillRect(x, GROUND_Y - 6, 18, 5);
+  for (let x = 70; x < canvas.width - 80; x += 36) {
+    ctx.fillRect(x, GROUND_Y - 7, 20, 5);
   }
 }
 
@@ -874,26 +1236,26 @@ function drawItems() {
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.beginPath();
-    ctx.arc(0, 0, 22, 0, Math.PI * 2);
+    ctx.arc(0, 0, 24, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.strokeStyle = it.type.color;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(0, 0, 20, 0, Math.PI * 2);
+    ctx.arc(0, 0, 21, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.fillStyle = it.type.color;
-    ctx.fillRect(-11, -11, 22, 22);
+    ctx.fillRect(-12, -12, 24, 24);
 
     ctx.fillStyle = '#000';
     ctx.font = '7px "Press Start 2P", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(it.type.icon, 0, 3);
+    ctx.fillText(it.type.shortName, 0, 3);
 
     ctx.fillStyle = '#fff';
     ctx.font = '7px "Press Start 2P", monospace';
-    ctx.fillText('SLASH ME!', 0, -25);
+    ctx.fillText('SLASH ME!', 0, -27);
 
     ctx.restore();
   });
@@ -921,6 +1283,39 @@ function drawSmallFlies() {
     ctx.beginPath();
     ctx.arc(-8, -3, 5, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.restore();
+  });
+}
+
+function drawSmallSpiders() {
+  smallSpiders.forEach((sp) => {
+    ctx.save();
+    ctx.translate(sp.x, sp.y);
+    const dir = sp.vx >= 0 ? 1 : -1;
+    ctx.scale(dir, 1);
+
+    const legSwing = Math.sin(sp.legFrame) * 5;
+    ctx.strokeStyle = sp.flashTimer > 0 ? '#ffffff' : '#6b21a8';
+    ctx.lineWidth = 3;
+    for (let i = -1; i <= 1; i++) {
+      const lx = i * 9;
+      ctx.beginPath();
+      ctx.moveTo(lx, -12);
+      ctx.lineTo(lx - 8 + legSwing * i, 0);
+      ctx.moveTo(lx, -12);
+      ctx.lineTo(lx + 8 - legSwing * i, 0);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = sp.flashTimer > 0 ? '#ffffff' : '#4c1d95';
+    ctx.beginPath();
+    ctx.ellipse(0, -15, 16, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ff2a55';
+    ctx.fillRect(6, -18, 4, 4);
+    ctx.fillRect(11, -18, 4, 4);
 
     ctx.restore();
   });
@@ -967,7 +1362,7 @@ function drawFrogKnight() {
   ctx.fillRect(10, -43, 3, 4);
 
   const isRage = frog.rageTimer > 0;
-  const bladeLen = isRage ? 76 : 62;
+  const bladeLen = isRage ? 82 : 66;
 
   ctx.save();
   if (frog.attackTimer > 0) {
@@ -987,10 +1382,10 @@ function drawFrogKnight() {
   ctx.restore();
 
   if (frog.attackTimer > 2) {
-    const arcRadius = isRage ? 115 : 92;
+    const arcRadius = isRage ? 125 : 102;
     ctx.save();
     ctx.strokeStyle = isRage ? 'rgba(255, 59, 48, 0.65)' : 'rgba(77, 238, 234, 0.65)';
-    ctx.lineWidth = 18;
+    ctx.lineWidth = 20;
     ctx.beginPath();
     ctx.arc(8, -26, arcRadius, -1.25, 0.85);
     ctx.stroke();
@@ -998,7 +1393,7 @@ function drawFrogKnight() {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 8;
     ctx.beginPath();
-    ctx.arc(8, -26, arcRadius + 4, -1.2, 0.8);
+    ctx.arc(8, -26, arcRadius + 5, -1.2, 0.8);
     ctx.stroke();
     ctx.restore();
   }
@@ -1007,20 +1402,20 @@ function drawFrogKnight() {
 }
 
 function drawBossFly() {
-  if (!boss.active) return;
+  if (!bossFly.active) return;
 
   ctx.save();
-  ctx.translate(boss.x, boss.y);
-  ctx.scale(1.35, 1.35);
+  ctx.translate(bossFly.x, bossFly.y);
+  ctx.scale(1.38, 1.38);
 
-  const wingOffset = Math.sin(boss.wingFrame) * 16;
+  const wingOffset = Math.sin(bossFly.wingFrame) * 16;
   ctx.fillStyle = 'rgba(220, 245, 255, 0.78)';
   ctx.beginPath();
   ctx.ellipse(-20, -34 + wingOffset * 0.5, 32, 16, -0.4, 0, Math.PI * 2);
   ctx.ellipse(22, -34 - wingOffset * 0.5, 32, 16, 0.4, 0, Math.PI * 2);
   ctx.fill();
 
-  const isFlashing = boss.flashTimer > 0;
+  const isFlashing = bossFly.flashTimer > 0;
 
   ctx.fillStyle = isFlashing ? '#ffffff' : '#2d5a27';
   ctx.beginPath();
@@ -1053,6 +1448,59 @@ function drawBossFly() {
   ctx.restore();
 }
 
+function drawBossSpider() {
+  if (!bossSpider.active) return;
+
+  ctx.save();
+  ctx.translate(bossSpider.x, bossSpider.y);
+  const dir = bossSpider.vx >= 0 ? 1 : -1;
+  ctx.scale(dir * 1.45, 1.45);
+
+  const legWave = Math.sin(bossSpider.legFrame) * 8;
+  ctx.strokeStyle = bossSpider.flashTimer > 0 ? '#ffffff' : '#7e22ce';
+  ctx.lineWidth = 4.5;
+  for (let i = -2; i <= 2; i++) {
+    const baseX = i * 9;
+    ctx.beginPath();
+    ctx.moveTo(baseX, -24);
+    ctx.lineTo(baseX - 16 + legWave, -38);
+    ctx.lineTo(baseX - 24, 0);
+
+    ctx.moveTo(baseX, -24);
+    ctx.lineTo(baseX + 16 - legWave, -38);
+    ctx.lineTo(baseX + 24, 0);
+    ctx.stroke();
+  }
+
+  // Abdomen
+  ctx.fillStyle = bossSpider.flashTimer > 0 ? '#ffffff' : '#3b0764';
+  ctx.beginPath();
+  ctx.ellipse(-14, -32, 26, 20, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hourglass marking
+  ctx.fillStyle = '#ff1e1e';
+  ctx.fillRect(-20, -37, 10, 10);
+
+  // Head & Thorax
+  ctx.fillStyle = bossSpider.flashTimer > 0 ? '#ffffff' : '#581c87';
+  ctx.beginPath();
+  ctx.arc(12, -24, 18, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Glowing Red Eyes
+  ctx.fillStyle = '#ff1e1e';
+  ctx.fillRect(16, -30, 6, 6);
+  ctx.fillRect(24, -30, 6, 6);
+
+  // Fangs
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(18, -12, 4, 9);
+  ctx.fillRect(25, -12, 4, 9);
+
+  ctx.restore();
+}
+
 function drawShockwaves() {
   shockwaves.forEach((sw) => {
     ctx.save();
@@ -1067,84 +1515,118 @@ function drawShockwaves() {
 
 function drawHUD() {
   ctx.textAlign = 'center';
-  if (stage === 1) {
-    const remaining = Math.max(0, Math.ceil(BOSS_SPAWN_SECONDS - elapsedSeconds));
-    ctx.font = '13px "Press Start 2P", monospace';
-    ctx.fillStyle = '#ffe700';
-    ctx.fillText(`STAGE 1: BOSS IN ${remaining}s`, canvas.width / 2, 28);
 
-    const barW = 340;
-    const barH = 14;
+  if (wavePhase === 1) {
+    const remaining = Math.max(0, Math.ceil(BOSS_FLY_SPAWN_SECONDS - elapsedSeconds));
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffe700';
+    ctx.fillText(`WAVE 1: BOSS FLY IN ${remaining}s`, canvas.width / 2, 30);
+
+    const barW = 400;
+    const barH = 15;
     const barX = (canvas.width - barW) / 2;
-    const barY = 36;
+    const barY = 39;
     ctx.fillStyle = '#111';
     ctx.fillRect(barX - 3, barY - 3, barW + 6, barH + 6);
     ctx.fillStyle = '#4deeea';
-    ctx.fillRect(barX, barY, barW * Math.min(1, elapsedSeconds / BOSS_SPAWN_SECONDS), barH);
-  } else {
+    ctx.fillRect(barX, barY, barW * Math.min(1, elapsedSeconds / BOSS_FLY_SPAWN_SECONDS), barH);
+  } else if (wavePhase === 2 && bossFly.active) {
     ctx.font = '14px "Press Start 2P", monospace';
     ctx.fillStyle = '#ff5252';
-    ctx.fillText(`GIANT BOSS FLY HP: ${boss.hp}/${boss.maxHp}`, canvas.width / 2, 28);
+    ctx.fillText(`GIANT BOSS FLY HP: ${bossFly.hp}/${bossFly.maxHp}`, canvas.width / 2, 30);
 
-    const barW = 420;
+    const barW = 460;
     const barH = 18;
     const barX = (canvas.width - barW) / 2;
-    const barY = 36;
-
+    const barY = 39;
     ctx.fillStyle = '#111';
     ctx.fillRect(barX - 4, barY - 4, barW + 8, barH + 8);
     ctx.strokeStyle = '#f39c12';
     ctx.lineWidth = 3;
     ctx.strokeRect(barX - 4, barY - 4, barW + 8, barH + 8);
 
-    const hpRatio = boss.hp / boss.maxHp;
+    const hpRatio = bossFly.hp / bossFly.maxHp;
     ctx.fillStyle = hpRatio > 0.35 ? '#e74c3c' : '#ff9f1c';
+    ctx.fillRect(barX, barY, barW * hpRatio, barH);
+  } else if (wavePhase === 3) {
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.fillStyle = '#c084fc';
+    ctx.fillText(
+      `WAVE 3: SPIDERS ${spidersDefeatedInWave}/${SMALL_SPIDERS_TO_CLEAR}`,
+      canvas.width / 2,
+      30
+    );
+
+    const barW = 400;
+    const barH = 15;
+    const barX = (canvas.width - barW) / 2;
+    const barY = 39;
+    ctx.fillStyle = '#111';
+    ctx.fillRect(barX - 3, barY - 3, barW + 6, barH + 6);
+    ctx.fillStyle = '#c084fc';
+    ctx.fillRect(barX, barY, barW * Math.min(1, spidersDefeatedInWave / SMALL_SPIDERS_TO_CLEAR), barH);
+  } else if (wavePhase === 4 && bossSpider.active) {
+    ctx.font = '14px "Press Start 2P", monospace';
+    ctx.fillStyle = '#e879f9';
+    ctx.fillText(`GIANT BOSS SPIDER HP: ${bossSpider.hp}/${bossSpider.maxHp}`, canvas.width / 2, 30);
+
+    const barW = 460;
+    const barH = 18;
+    const barX = (canvas.width - barW) / 2;
+    const barY = 39;
+    ctx.fillStyle = '#111';
+    ctx.fillRect(barX - 4, barY - 4, barW + 8, barH + 8);
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(barX - 4, barY - 4, barW + 8, barH + 8);
+
+    const hpRatio = bossSpider.hp / bossSpider.maxHp;
+    ctx.fillStyle = hpRatio > 0.35 ? '#9333ea' : '#f43f5e';
     ctx.fillRect(barX, barY, barW * hpRatio, barH);
   }
 
+  // Top Left: Frog HP & Buffs
   ctx.textAlign = 'left';
   ctx.font = '11px "Press Start 2P", monospace';
   ctx.fillStyle = '#4deeea';
-  ctx.fillText('FROG HP', 24, 28);
+  ctx.fillText('FROG HP', 24, 30);
   ctx.fillStyle = '#111';
-  ctx.fillRect(24, 36, 120, 12);
+  ctx.fillRect(24, 39, 130, 13);
   ctx.fillStyle = '#2ecc71';
-  ctx.fillRect(24, 36, 120 * (frog.hp / frog.maxHp), 12);
+  ctx.fillRect(24, 39, 130 * (frog.hp / frog.maxHp), 13);
 
   if (frog.shieldTimer > 0) {
     ctx.fillStyle = '#f1c40f';
-    ctx.fillText('SHIELD ON!', 24, 66);
+    ctx.fillText('SHIELD ON!', 24, 70);
   }
   if (frog.rageTimer > 0) {
     ctx.fillStyle = '#ff3b30';
-    ctx.fillText('2X RAGE!', 24, 82);
+    ctx.fillText('2X RAGE!', 24, 86);
   }
 
+  // Top Right: Score & Author
   ctx.textAlign = 'right';
-  ctx.font = '10px "Press Start 2P", monospace';
-  ctx.fillStyle = '#e6d5c3';
-  ctx.fillText('SKILL SLOT', canvas.width - 24, 28);
-  if (frog.heldItem) {
-    ctx.fillStyle = frog.heldItem.color;
-    ctx.fillText(`[${frog.heldItem.shortName}] READY!`, canvas.width - 24, 46);
-  } else {
-    ctx.fillStyle = '#777';
-    ctx.fillText('SLASH AN ITEM', canvas.width - 24, 46);
-  }
+  ctx.font = '11px "Press Start 2P", monospace';
+  ctx.fillStyle = '#ffe700';
+  ctx.fillText(`SCORE: ${score}`, canvas.width - 24, 30);
+  ctx.font = '8px "Press Start 2P", monospace';
+  ctx.fillStyle = '#74d647';
+  ctx.fillText('BY RYLAN SAW', canvas.width - 24, 48);
 
+  // Bottom Left: Combo Counter
   if (frog.combo > 0) {
     ctx.textAlign = 'left';
     ctx.font = '20px "Press Start 2P", monospace';
     ctx.fillStyle = '#ffe700';
-    ctx.fillText('COMBO!', 24, 385);
+    ctx.fillText('COMBO!', 24, canvas.height - 42);
 
     ctx.fillStyle = '#ff3b30';
-    ctx.fillText(`x${frog.combo}`, 152, 385);
+    ctx.fillText(`x${frog.combo}`, 152, canvas.height - 42);
 
     if (frog.combo >= 5) {
       ctx.font = '12px "Press Start 2P", monospace';
       ctx.fillStyle = '#ff6b6b';
-      ctx.fillText('(Mega Strike!)', 24, 406);
+      ctx.fillText('(Mega Strike!)', 24, canvas.height - 20);
     }
   }
 }
@@ -1185,8 +1667,10 @@ function loop() {
   drawBackground();
   drawItems();
   drawSmallFlies();
+  drawSmallSpiders();
   drawFrogKnight();
   drawBossFly();
+  drawBossSpider();
   drawShockwaves();
   drawPopupsAndParticles();
   drawHUD();
